@@ -1,27 +1,28 @@
 package lieklion.dao;
 
 
+import lieklion.connection.AwsConnection;
+import lieklion.connection.ConnectionMaker;
 import lieklion.domain.User;
 import java.sql.*;
 
-import static lieklion.connection.ConnectionConst.*;
-
 public class UserDao {
+
+    private ConnectionMaker connectionMaker;
+
+    public UserDao(ConnectionMaker connectionMaker) {
+        this.connectionMaker = connectionMaker;
+    }
 
     public void save(User user) {
         try {
-            // DB접속 (ex sql workbeanch실행)
-            Connection conn = DriverManager.getConnection(dbHost, dbUser, dbPassword);
-
-            // Query문 작성
+            Connection conn = connectionMaker.makeConnection();
             PreparedStatement ps = conn.prepareStatement("INSERT INTO users(id, name, password) VALUES(?,?,?);");
             ps.setString(1, user.getId());
             ps.setString(2, user.getName());
             ps.setString(3, user.getPassword());
 
-            // Query문 실행
             ps.executeUpdate();
-
             close(conn, ps);
 
         } catch (SQLException e) {
@@ -38,21 +39,16 @@ public class UserDao {
         String sql = "SELECT * FROM users WHERE users.id=?";
 
         try {
-            // DB접속 (ex sql workbeanch실행)
-            conn = DriverManager.getConnection(dbHost, dbUser, dbPassword);
-
-            // Query문 작성
+            conn = connectionMaker.makeConnection();
             PreparedStatement pstmt = conn.prepareStatement("SELECT * FROM users WHERE id = ?");
             pstmt.setString(1, id);
-
-            // Query문 실행
             rs = pstmt.executeQuery();
+
             rs.next();
             User user = new User(rs.getString("id"), rs.getString("name"),
                     rs.getString("password"));
 
             close(conn, ps, rs);
-
             return user;
 
         } catch (SQLException e) {
@@ -71,5 +67,6 @@ public class UserDao {
             }
         }
     }
+
 
 }
