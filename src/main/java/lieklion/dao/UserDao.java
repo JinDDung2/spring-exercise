@@ -4,9 +4,12 @@ package lieklion.dao;
 import lieklion.connection.AwsConnection;
 import lieklion.connection.ConnectionMaker;
 import lieklion.domain.User;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 
 import javax.sql.DataSource;
 import java.sql.*;
+import java.util.List;
 
 public class UserDao {
     /*private ConnectionMaker connectionMaker;
@@ -15,88 +18,45 @@ public class UserDao {
         this.connectionMaker = connectionMaker;
     }*/
 
-    private DataSource dataSource;
-    private JdbcContext jdbcContext;
+    /*private DataSource dataSource;
+    private JdbcContext jdbcContext;*/
+    private final JdbcTemplate template;
 
     public UserDao(DataSource dataSource) {
-        this.dataSource = dataSource;
-        this.jdbcContext = new JdbcContext(dataSource);
+        this.template = new JdbcTemplate(dataSource);
     }
 
     public void save(User user) {
-        jdbcContext.workWithStatementStrategy(new StatementStrategy() {
-            @Override
-            public PreparedStatement makePreparedStatement(Connection conn) throws SQLException {
-                String sql = "INSERT INTO users(id, name, password) VALUES(?,?,?)";
-                PreparedStatement ps;
-
-                ps = conn.prepareStatement(sql);
-                ps.setString(1, user.getId());
-                ps.setString(2, user.getName());
-                ps.setString(3, user.getPassword());
-                return ps;
-            }
-        });
+        String sql = "INSERT INTO users(id, name, password) VALUES(?, ?, ?)";
+        template.update(sql, user.getId(), user.getName(), user.getPassword());
     }
 
     public User findById(String id) {
-        String sql = "SELECT * FROM users WHERE users.id=?";
-
-        Connection conn = null;
-        PreparedStatement ps = null;
-        ResultSet rs = null;
-
-        try {
-            conn = dataSource.getConnection();
-            PreparedStatement pstmt = conn.prepareStatement(sql);
-            pstmt.setString(1, id);
-            rs = pstmt.executeQuery();
-
-            if (rs.next()) {
-                User user = new User(rs.getString("id"), rs.getString("name"),
-                        rs.getString("password"));
-                return user;
-            } else {
-                throw new NullPointerException();
-            }
-
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        } finally {
-            close(conn, ps, rs);
-        }
+        String sql = "SELECT * FROM users where users.id=?";
+        return template.queryForObject(sql, userRowMapper(), id);
     }
 
-    public void deleteAll() {
-        jdbcContext.workWithStatementStrategy(new StatementStrategy() {
-            @Override
-            public PreparedStatement makePreparedStatement(Connection conn) throws SQLException {
-                String sql = "DELETE FROM users";
-                PreparedStatement ps = conn.prepareStatement(sql);
-                return ps;
-            }
+    private RowMapper<User> userRowMapper() {
+        return ((rs, rowNum) -> {
+            User user = new User(rs.getString("id"), rs.getString("name"), rs.getString("password"));
+            return user;
         });
+    }
+
+    public List<User> getAll() {
+        String sql = "SELECT * FROM users ORDER BY id";
+        return template.query(sql, userRowMapper());
+    }
+
+
+    public void deleteAll() {
+        String sql = "DELETE FROM users";
+        template.update(sql);
     }
 
     public int getCount() {
         String sql = "SELECT COUNT(*) FROM users";
-
-        Connection conn = null;
-        PreparedStatement ps = null;
-        ResultSet rs = null;
-
-        try {
-            conn = dataSource.getConnection();
-            ps = conn.prepareStatement(sql);
-            rs = ps.executeQuery();
-
-            rs.next();
-            return rs.getInt(1);
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        } finally {
-            close(conn, ps);
-        }
+        return template.queryForObject(sql, Integer.class);
     }
 
 
