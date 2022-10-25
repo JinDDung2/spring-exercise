@@ -4,36 +4,39 @@ package lieklion.dao;
 import lieklion.connection.AwsConnection;
 import lieklion.connection.ConnectionMaker;
 import lieklion.domain.User;
+
+import javax.sql.DataSource;
 import java.sql.*;
 
 public class UserDao {
-
-    private ConnectionMaker connectionMaker;
+    /*private ConnectionMaker connectionMaker;
 
     public UserDao(ConnectionMaker connectionMaker) {
         this.connectionMaker = connectionMaker;
+    }*/
+
+    private DataSource dataSource;
+    private JdbcContext jdbcContext;
+
+    public UserDao(DataSource dataSource) {
+        this.dataSource = dataSource;
+        this.jdbcContext = new JdbcContext(dataSource);
     }
 
     public void save(User user) {
-        String sql = "INSERT INTO users(id, name, password) VALUES(?,?,?)";
+        jdbcContext.workWithStatementStrategy(new StatementStrategy() {
+            @Override
+            public PreparedStatement makePreparedStatement(Connection conn) throws SQLException {
+                String sql = "INSERT INTO users(id, name, password) VALUES(?,?,?)";
+                PreparedStatement ps;
 
-        Connection conn = null;
-        PreparedStatement ps = null;
-
-        try {
-            conn = connectionMaker.makeConnection();
-            ps = conn.prepareStatement(sql);
-            ps.setString(1, user.getId());
-            ps.setString(2, user.getName());
-            ps.setString(3, user.getPassword());
-
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
-            throw new RuntimeException(e);
-        } finally {
-            close(conn, ps);
-        }
+                ps = conn.prepareStatement(sql);
+                ps.setString(1, user.getId());
+                ps.setString(2, user.getName());
+                ps.setString(3, user.getPassword());
+                return ps;
+            }
+        });
     }
 
     public User findById(String id) {
@@ -44,7 +47,7 @@ public class UserDao {
         ResultSet rs = null;
 
         try {
-            conn = connectionMaker.makeConnection();
+            conn = dataSource.getConnection();
             PreparedStatement pstmt = conn.prepareStatement(sql);
             pstmt.setString(1, id);
             rs = pstmt.executeQuery();
@@ -65,21 +68,14 @@ public class UserDao {
     }
 
     public void deleteAll() {
-        String sql = "DELETE FROM users";
-
-        Connection conn = null;
-        PreparedStatement ps = null;
-        try {
-            conn = connectionMaker.makeConnection();
-            ps = conn.prepareStatement(sql);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
-            throw new RuntimeException();
-        }
-        finally {
-            close(conn, ps);
-        }
+        jdbcContext.workWithStatementStrategy(new StatementStrategy() {
+            @Override
+            public PreparedStatement makePreparedStatement(Connection conn) throws SQLException {
+                String sql = "DELETE FROM users";
+                PreparedStatement ps = conn.prepareStatement(sql);
+                return ps;
+            }
+        });
     }
 
     public int getCount() {
@@ -90,7 +86,7 @@ public class UserDao {
         ResultSet rs = null;
 
         try {
-            conn = connectionMaker.makeConnection();
+            conn = dataSource.getConnection();
             ps = conn.prepareStatement(sql);
             rs = ps.executeQuery();
 
